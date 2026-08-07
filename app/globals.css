@@ -1,8 +1,11 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Paint Rush is played on phones at an event and projected on a screen —
+     it always uses a dark, high-contrast theme regardless of system setting. */
+  color-scheme: dark;
+  --background: #0a0a0a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,15 +15,34 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   color: var(--foreground);
   background: var(--background);
   font-family: Arial, Helvetica, sans-serif;
+  overscroll-behavior: none;
+}
+
+.no-tap {
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@keyframes countdown-pop {
+  0% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(0.95);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-countdown-pop {
+  animation: countdown-pop 0.5s ease-out;
 }
