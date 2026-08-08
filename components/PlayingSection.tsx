@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
 import Grid from "./Grid";
+import MyTeamBanner from "./MyTeamBanner";
 import ScoreBar from "./ScoreBar";
 
 interface PlayingSectionProps {
@@ -39,7 +40,13 @@ export default function PlayingSection({ room, players, playerId }: PlayingSecti
 
   return (
     <div className="flex flex-col gap-4 px-4 py-6">
-      <ScoreBar cells={cells ?? []} gridSize={room.gridSize} endsAt={room.endsAt} />
+      <MyTeamBanner players={players} playerId={playerId} />
+      <ScoreBar
+        cells={cells ?? []}
+        gridSize={room.gridSize}
+        endsAt={room.endsAt}
+        highlightColor={myColor}
+      />
       <Grid
         gridSize={room.gridSize}
         cells={cells ?? []}

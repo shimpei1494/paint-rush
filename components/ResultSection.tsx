@@ -4,21 +4,13 @@ import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
+import { colorName } from "@/lib/colors";
 import Grid from "./Grid";
 
 interface ResultSectionProps {
   room: Doc<"rooms">;
   playerId: string;
 }
-
-const COLOR_NAMES: Record<string, string> = {
-  "#ef4444": "赤",
-  "#3b82f6": "青",
-  "#22c55e": "緑",
-  "#eab308": "黄",
-  "#a855f7": "紫",
-  "#f97316": "橙",
-};
 
 export default function ResultSection({ room, playerId }: ResultSectionProps) {
   const cells = useQuery(api.game.getCells, { roomId: room._id });
@@ -65,7 +57,7 @@ export default function ResultSection({ room, playerId }: ResultSectionProps) {
               style={{ backgroundColor: winners[0][0] }}
             />
             <p className="text-2xl font-bold text-white">
-              {COLOR_NAMES[winners[0][0]] ?? ""}チーム
+              {colorName(winners[0][0])}チーム
             </p>
           </>
         )}
@@ -88,7 +80,7 @@ export default function ResultSection({ room, playerId }: ResultSectionProps) {
                 className="h-6 w-6 flex-shrink-0 rounded-full"
                 style={{ backgroundColor: color }}
               />
-              <span className="flex-1 text-white">{COLOR_NAMES[color] ?? color}</span>
+              <span className="flex-1 text-white">{colorName(color)}</span>
               <span className="font-mono text-lg text-white">{count}</span>
             </li>
           ))}

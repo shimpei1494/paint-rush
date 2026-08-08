@@ -15,10 +15,12 @@ interface ScoreBarProps {
   gridSize: number;
   /** Epoch ms when the round ends. Omit to hide the remaining-time readout. */
   endsAt?: number;
+  /** 自分のチーム色。指定するとその凡例を強調する。 */
+  highlightColor?: string;
 }
 
 /** Single horizontal stacked bar of per-color cell share, plus counts and a live remaining-time readout. */
-export default function ScoreBar({ cells, gridSize, endsAt }: ScoreBarProps) {
+export default function ScoreBar({ cells, gridSize, endsAt, highlightColor }: ScoreBarProps) {
   const now = useNow(100);
 
   const counts = useMemo(() => {
@@ -61,15 +63,20 @@ export default function ScoreBar({ cells, gridSize, endsAt }: ScoreBarProps) {
 
       <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
         <div className="flex flex-wrap gap-x-3 gap-y-1">
-          {PALETTE.map((color) => (
-            <span key={color} className="flex items-center gap-1 text-sm text-neutral-200">
-              <span
-                className="inline-block h-3 w-3 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              {counts.get(color) ?? 0}
-            </span>
-          ))}
+          {PALETTE.map((color) => {
+            const isMine = color === highlightColor;
+            return (
+              <span key={color} className="flex items-center gap-1 text-sm text-neutral-200">
+                <span
+                  className={`inline-block h-3 w-3 rounded-full ${isMine ? "ring-2 ring-white" : ""}`}
+                  style={{ backgroundColor: color }}
+                />
+                <span className={isMine ? "font-bold text-white" : ""}>
+                  {counts.get(color) ?? 0}
+                </span>
+              </span>
+            );
+          })}
         </div>
         {remainingSeconds !== null && (
           <span
