@@ -10,7 +10,7 @@ const COLOR_NAMES: Record<string, string> = {
 };
 
 /** パレット色 → 日本語の色名。未知の色はそのまま色コードを返す。 */
-export function colorName(color: string): string {
+function colorName(color: string): string {
   return COLOR_NAMES[color] ?? color;
 }
 

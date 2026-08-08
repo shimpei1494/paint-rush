@@ -4,37 +4,47 @@ import { useMemo } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { colorName } from "@/lib/colors";
+import { PALETTE } from "@/convex/constants";
+import { teamName } from "@/lib/colors";
 import Grid from "./Grid";
 
 interface ResultSectionProps {
   room: Doc<"rooms">;
   playerId: string;
+  players: Doc<"players">[];
 }
 
-export default function ResultSection({ room, playerId }: ResultSectionProps) {
+export default function ResultSection({ room, playerId, players }: ResultSectionProps) {
   const cells = useQuery(api.game.getCells, { roomId: room._id });
   const resetRoom = useMutation(api.game.resetRoom);
   const isHost = room.hostPlayerId === playerId;
+  const me = players.find((p) => p.playerId === playerId);
 
   const ranking = useMemo(() => {
     const counts = new Map<string, number>();
     for (const c of cells ?? []) {
       counts.set(c.color, (counts.get(c.color) ?? 0) + 1);
     }
-    return [...counts.entries()]
-      .filter(([, count]) => count > 0)
-      .sort((a, b) => b[1] - a[1]);
-  }, [cells]);
+    // 塗られた色だけでなく、プレイヤーが所属する色も 0 マスで結果に出す
+    const colors = new Set([...counts.keys(), ...players.map((p) => p.color)]);
+    const palette: readonly string[] = PALETTE;
+    return [...colors]
+      .map((color): [string, number] => [color, counts.get(color) ?? 0])
+      .sort((a, b) => {
+        if (b[1] !== a[1]) return b[1] - a[1];
+        return palette.indexOf(a[0]) - palette.indexOf(b[0]);
+      });
+  }, [cells, players]);
 
   const topScore = ranking[0]?.[1] ?? 0;
   const winners = ranking.filter(([, count]) => count === topScore && topScore > 0);
   const isTie = winners.length > 1;
+  const isMyColorWinner = me !== undefined && winners.some(([color]) => color === me.color);
 
   return (
     <div className="flex flex-col items-center gap-8 px-4 py-8">
       <div className="flex flex-col items-center gap-3">
-        {ranking.length === 0 ? (
+        {ranking.length === 0 || topScore === 0 ? (
           <p className="text-2xl text-neutral-400">誰も塗りませんでした</p>
         ) : isTie ? (
           <>
@@ -48,6 +58,9 @@ export default function ResultSection({ room, playerId }: ResultSectionProps) {
                 />
               ))}
             </div>
+            {isMyColorWinner && (
+              <p className="text-emerald-400 font-bold">あなたのチームです</p>
+            )}
           </>
         ) : (
           <>
@@ -57,8 +70,11 @@ export default function ResultSection({ room, playerId }: ResultSectionProps) {
               style={{ backgroundColor: winners[0][0] }}
             />
             <p className="text-2xl font-bold text-white">
-              {colorName(winners[0][0])}チーム
+              {teamName(winners[0][0])}
             </p>
+            {isMyColorWinner && (
+              <p className="text-emerald-400 font-bold">あなたのチームです</p>
+            )}
           </>
         )}
       </div>
@@ -71,19 +87,40 @@ export default function ResultSection({ room, playerId }: ResultSectionProps) {
       <div className="w-full max-w-md">
         <h2 className="mb-2 text-sm font-semibold text-neutral-400">結果</h2>
         <ul className="flex flex-col gap-2">
-          {ranking.map(([color, count]) => (
-            <li
-              key={color}
-              className="flex items-center gap-3 rounded-lg bg-neutral-800 px-4 py-3"
-            >
-              <span
-                className="h-6 w-6 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              <span className="flex-1 text-white">{colorName(color)}</span>
-              <span className="font-mono text-lg text-white">{count}</span>
-            </li>
-          ))}
+          {ranking.map(([color, count]) => {
+            const teammates = players.filter((p) => p.color === color);
+            const teammateNames = teammates
+              .map((p) => (p.playerId === playerId ? `${p.name}(あなた)` : p.name))
+              .join("、");
+            const isMyTeam = me?.color === color;
+            return (
+              <li
+                key={color}
+                className={`flex flex-col gap-1 rounded-lg bg-neutral-800 px-4 py-3 ${
+                  isMyTeam ? "ring-2 ring-emerald-400" : ""
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className="h-6 w-6 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: color }}
+                  />
+                  <span className="flex flex-1 items-center gap-2 text-white">
+                    {teamName(color)}
+                    {isMyTeam && (
+                      <span className="rounded-full bg-emerald-500 px-2 py-0.5 text-xs font-bold text-white">
+                        あなた
+                      </span>
+                    )}
+                  </span>
+                  <span className="font-mono text-lg text-white">{count}</span>
+                </div>
+                {teammates.length > 0 && (
+                  <p className="text-sm text-neutral-400">{teammateNames}</p>
+                )}
+              </li>
+            );
+          })}
         </ul>
       </div>
 

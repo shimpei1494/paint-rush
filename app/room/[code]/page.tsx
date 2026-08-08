@@ -63,7 +63,9 @@ export default function RoomPage() {
       {roomDoc.status === "playing" && (
         <PlayingSection room={roomDoc} players={players} playerId={playerId} />
       )}
-      {roomDoc.status === "finished" && <ResultSection room={roomDoc} playerId={playerId} />}
+      {roomDoc.status === "finished" && (
+        <ResultSection room={roomDoc} playerId={playerId} players={players} />
+      )}
     </main>
   );
 }
