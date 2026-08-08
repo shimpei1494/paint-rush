@@ -196,6 +196,33 @@ export const paint = mutation({
   },
 });
 
+export const endRoundByHost = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    playerId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get("rooms", args.roomId);
+    if (!room) {
+      throw new Error("部屋が見つかりません。");
+    }
+    if (room.hostPlayerId !== args.playerId) {
+      throw new Error("ホストのみが終了できます。");
+    }
+    if (room.status !== "countdown" && room.status !== "playing") {
+      return { ok: false as const, reason: "notInProgress" as const };
+    }
+
+    // roundId は進めない。予約済みの beginPlaying / endGame は status チェックで空振りするため(設計メモ D1 の応用)
+    await ctx.db.patch("rooms", args.roomId, {
+      status: "finished",
+      endsAt: Date.now(),
+    });
+
+    return { ok: true as const };
+  },
+});
+
 export const resetRoom = mutation({
   args: {
     roomId: v.id("rooms"),
