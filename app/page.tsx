@@ -18,6 +18,7 @@ export default function Home() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const canSubmit = ready && !!playerId && name.trim().length > 0 && !busy;
+  const needsName = ready && name.trim().length === 0;
 
   const handleCreate = async () => {
     if (!playerId) return;
@@ -65,8 +66,14 @@ export default function Home() {
           onChange={(e) => setName(e.target.value.slice(0, 20))}
           placeholder="なまえを入力"
           maxLength={20}
+          aria-describedby={needsName ? "name-hint" : undefined}
           className="no-tap w-full rounded-xl bg-neutral-800 px-4 py-4 text-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
+        {needsName && (
+          <p id="name-hint" className="text-sm text-neutral-400">
+            名前を入力すると部屋を作成・参加できます
+          </p>
+        )}
       </div>
 
       <button
