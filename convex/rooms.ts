@@ -3,6 +3,7 @@ import { mutation, query, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import {
   DEFAULT_GRID_SIZE,
+  DEFAULT_PLAYER_NAME,
   MAX_PLAYERS,
   PALETTE,
   ROOM_CODE_LENGTH,
@@ -21,7 +22,7 @@ function randomCode(): string {
 
 function normalizeName(name: string): string {
   const trimmed = name.trim().slice(0, 20);
-  return trimmed.length > 0 ? trimmed : "プレイヤー";
+  return trimmed.length > 0 ? trimmed : DEFAULT_PLAYER_NAME;
 }
 
 async function findRoomByCode(

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
+import { DEFAULT_PLAYER_NAME } from "@/convex/constants";
 import { usePlayerIdentity } from "@/lib/player";
 import { JOIN_ERROR_MESSAGES } from "@/lib/messages";
 import LobbySection from "@/components/LobbySection";
@@ -16,7 +17,7 @@ export default function RoomPage() {
   const params = useParams<{ code: string }>();
   const code = (params.code ?? "").toUpperCase();
 
-  const { playerId, name, ready } = usePlayerIdentity();
+  const { playerId, name, ready, setName } = usePlayerIdentity();
   const joinRoom = useMutation(api.rooms.joinRoom);
   const room = useQuery(api.rooms.getRoom, code ? { code } : "skip");
 
@@ -26,13 +27,19 @@ export default function RoomPage() {
   useEffect(() => {
     if (!ready || !playerId || !code || joinedRef.current) return;
     joinedRef.current = true;
+    const joinName = name.trim() || DEFAULT_PLAYER_NAME;
     void (async () => {
-      const res = await joinRoom({ code, playerId, name });
+      const res = await joinRoom({ code, playerId, name: joinName });
       if (!res.ok) {
         setJoinError(JOIN_ERROR_MESSAGES[res.reason] ?? "参加できませんでした");
+        return;
+      }
+      // トップに戻ったときに名前欄が空にならないよう、サーバーと同じフォールバック名を保存する
+      if (!name.trim()) {
+        setName(joinName);
       }
     })();
-  }, [ready, playerId, code, name, joinRoom]);
+  }, [ready, playerId, code, name, joinRoom, setName]);
 
   if (!ready || room === undefined) {
     return <CenteredMessage text="読み込み中…" />;
