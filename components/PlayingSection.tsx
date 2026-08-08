@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
@@ -35,11 +35,38 @@ export default function PlayingSection({ room, players, playerId }: PlayingSecti
     localStore.setQuery(api.game.getCells, { roomId: args.roomId }, next);
   });
 
-  const handlePaint = useCallback(
-    (x: number, y: number) => {
-      void paint({ roomId: room._id, playerId, x, y });
+  const cellMap = useMemo(() => {
+    const m = new Map<number, string>();
+    for (const c of cells ?? []) {
+      m.set(c.y * room.gridSize + c.x, c.color);
+    }
+    return m;
+  }, [cells, room.gridSize]);
+
+  // サーバーの paint と同じ判定(保護マス+自色隣接)を先に行い、
+  // 無効なタップは送信も楽観的更新もしない(戦略性改善検討 S1)
+  const canPaint = useCallback(
+    (x: number, y: number): boolean => {
+      if (!myColor) return false;
+      const startCell = room.startCells?.find((s) => s.x === x && s.y === y);
+      if (startCell && startCell.color !== myColor) return false;
+      return [
+        [x - 1, y],
+        [x + 1, y],
+        [x, y - 1],
+        [x, y + 1],
+      ].some(([nx, ny]) => cellMap.get(ny * room.gridSize + nx) === myColor);
     },
-    [paint, room._id, playerId],
+    [myColor, room.startCells, room.gridSize, cellMap],
+  );
+
+  const handlePaint = useCallback(
+    (x: number, y: number): boolean => {
+      if (!canPaint(x, y)) return false;
+      void paint({ roomId: room._id, playerId, x, y });
+      return true;
+    },
+    [canPaint, paint, room._id, playerId],
   );
 
   return (
@@ -54,8 +81,13 @@ export default function PlayingSection({ room, players, playerId }: PlayingSecti
       <Grid
         gridSize={room.gridSize}
         cells={cells ?? []}
+        startCells={room.startCells}
+        highlightColor={myColor}
         onPaint={myColor ? handlePaint : undefined}
       />
+      <p className="text-center text-sm text-neutral-400">
+        ◯のスタート地点から、自分の色のとなりのマスだけ塗れる
+      </p>
       {isHost ? (
         <button
           type="button"

@@ -7,6 +7,7 @@ import {
   MAX_PLAYERS,
   PALETTE,
   ROOM_CODE_LENGTH,
+  isGridSizeOption,
   isPaletteColor,
 } from "./constants";
 
@@ -172,6 +173,30 @@ export const changeColor = mutation({
 
     // 同色の重複は意図的に許可する(=チーム)
     await ctx.db.patch("players", player._id, { color: args.color });
+    return { ok: true };
+  },
+});
+
+export const setGridSize = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    playerId: v.string(),
+    gridSize: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const room = await ctx.db.get("rooms", args.roomId);
+    if (!room || room.status !== "lobby") {
+      // ロビーを抜けた後の古いUIクリックの可能性があるだけなので、throwしない
+      return { ok: false };
+    }
+    if (room.hostPlayerId !== args.playerId) {
+      throw new Error("ホストのみが盤面サイズを変更できます。");
+    }
+    if (!isGridSizeOption(args.gridSize)) {
+      throw new Error("無効な盤面サイズです。");
+    }
+
+    await ctx.db.patch("rooms", args.roomId, { gridSize: args.gridSize });
     return { ok: true };
   },
 });
