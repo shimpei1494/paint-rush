@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Convex × Vercel デプロイの仕組み — Paint Rush</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --bg-soft: #f6f7f9;
+    --bg-card: #ffffff;
+    --fg: #1a1d21;
+    --fg-muted: #5c6672;
+    --border: #dfe3e8;
+    --accent: #0b7285;
+    --accent-soft: #e3f2f5;
+    --local: #7048e8;
+    --local-soft: #f0ebff;
+    --preview: #d97706;
+    --preview-soft: #fff3e0;
+    --prod: #0ca678;
+    --prod-soft: #e3f7f0;
+    --danger: #d6336c;
+    --danger-soft: #ffe8f0;
+    --code-bg: #f2f4f6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171a;
+      --bg-soft: #1b1f23;
+      --bg-card: #1b1f23;
+      --fg: #e6e9ec;
+      --fg-muted: #98a2ad;
+      --border: #2c3339;
+      --accent: #4dc4d9;
+      --accent-soft: #133238;
+      --local: #b197fc;
+      --local-soft: #241d3d;
+      --preview: #ffa94d;
+      --preview-soft: #3a2a12;
+      --prod: #38d9a9;
+      --prod-soft: #10322a;
+      --danger: #ff8cc0;
+      --danger-soft: #3a1526;
+      --code-bg: #22282d;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 0 20px 96px;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", "Segoe UI", sans-serif;
+    line-height: 1.85;
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  header {
+    padding: 56px 0 32px;
+    border-bottom: 1px solid var(--border);
+  }
+  h1 { font-size: 30px; line-height: 1.4; margin: 0 0 12px; letter-spacing: -0.01em; }
+  .lede { color: var(--fg-muted); margin: 0; font-size: 15px; }
+  .lede a { color: var(--accent); }
+
+  h2 {
+    font-size: 22px;
+    margin: 56px 0 8px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    letter-spacing: -0.01em;
+  }
+  /* ヘッダーの下線と重なって区切りが二重に見えるのを防ぐ */
+  h2:first-of-type { border-top: none; padding-top: 0; margin-top: 40px; }
+  h2 .num {
+    display: inline-block;
+    min-width: 30px;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  p { margin: 12px 0; }
+  ul, ol { padding-left: 1.4em; margin: 12px 0; }
+  li { margin: 6px 0; }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 0.88em;
+    background: var(--code-bg);
+    padding: 2px 6px;
+    border-radius: 5px;
+    word-break: break-word;
+  }
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 16px;
+    overflow-x: auto;
+    margin: 16px 0;
+    line-height: 1.6;
+  }
+  pre code { background: none; padding: 0; font-size: 13.5px; }
+
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px 22px;
+    margin: 20px 0;
+  }
+  .card > :first-child { margin-top: 0; }
+  .card > :last-child { margin-bottom: 0; }
+
+  .callout {
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 0 10px 10px 0;
+    padding: 14px 18px;
+    margin: 20px 0;
+  }
+  .callout > :first-child { margin-top: 0; }
+  .callout > :last-child { margin-bottom: 0; }
+  .callout.warn { border-left-color: var(--danger); background: var(--danger-soft); }
+  .callout .label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    margin-bottom: 4px;
+  }
+  .callout.warn .label { color: var(--danger); }
+
+  figure { margin: 24px 0; }
+  .scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  svg { display: block; max-width: 100%; height: auto; }
+  figcaption {
+    color: var(--fg-muted);
+    font-size: 13px;
+    margin-top: 10px;
+    text-align: center;
+  }
+
+  table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14.5px; }
+  th, td { border: 1px solid var(--border); padding: 10px 13px; text-align: left; vertical-align: top; }
+  th { background: var(--bg-soft); font-weight: 700; }
+  td code { font-size: 0.85em; }
+
+  .steps { list-style: none; padding: 0; margin: 24px 0; counter-reset: s; }
+  .steps > li {
+    counter-increment: s;
+    position: relative;
+    padding: 0 0 22px 52px;
+    margin: 0 0 0 15px;
+    border-left: 2px solid var(--border);
+  }
+  .steps > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  .steps > li::before {
+    content: counter(s);
+    position: absolute;
+    left: -16px;
+    top: -2px;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: var(--accent);
+    color: #fff;
+    font-size: 14px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-variant-numeric: tabular-nums;
+  }
+  .steps .t { font-weight: 700; display: block; margin-bottom: 2px; }
+  .steps .d { color: var(--fg-muted); font-size: 14.5px; }
+
+  .tag {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 999px;
+  }
+  .tag.local { background: var(--local-soft); color: var(--local); }
+  .tag.preview { background: var(--preview-soft); color: var(--preview); }
+  .tag.prod { background: var(--prod-soft); color: var(--prod); }
+
+  .links { list-style: none; padding: 0; }
+  .links li { margin: 10px 0; }
+  .links a { color: var(--accent); text-decoration: none; border-bottom: 1px solid currentColor; }
+  .links .desc { color: var(--fg-muted); font-size: 13.5px; display: block; }
+
+  footer {
+    margin-top: 64px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    color: var(--fg-muted);
+    font-size: 13.5px;
+  }
+  footer a { color: var(--accent); }
+
+  @media (max-width: 620px) {
+    body { font-size: 15px; padding: 0 16px 64px; }
+    h1 { font-size: 25px; }
+    h2 { font-size: 20px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>Convex × Vercel デプロイの仕組み</h1>
+  <p class="lede">
+    Paint Rush は <code>main</code> にマージするだけで本番へ、ブランチを push するだけでプレビューへ反映される。
+    その「よしなに動く」部分で実際に何が起きているのかを分解した資料。<br>
+    設定の手順そのものは <a href="./デプロイ手順.md">デプロイ手順.md</a> を参照。
+  </p>
+</header>
+
+<h2><span class="num">1</span>登場人物 — 1プロジェクトに複数のバックエンド</h2>
+
+<p>
+  前提として、<strong>Convex の「デプロイメント」は実際に動いているバックエンドの実体そのもの</strong>である。
+  関数・スキーマ・データベースが一式入った箱が、1つのプロジェクトの中に用途別に複数存在する。
+  これを Vercel 側の環境（Production / Preview）と対応させるのが基本形になる。
+</p>
+
+<figure>
+  <div class="scroll">
+  <svg viewBox="0 0 880 300" role="img" aria-label="1つのConvexプロジェクトの中に、開発用・プレビュー用・本番用の3種類のデプロイメントが並んでいる図">
+    <rect x="8" y="8" width="864" height="284" rx="14" fill="none" stroke="var(--border)" stroke-width="2"/>
+    <text x="28" y="38" fill="var(--fg-muted)" font-size="14" font-weight="700">Convex プロジェクト（paint-rush）</text>
+
+    <rect x="30" y="60" width="260" height="200" rx="12" fill="var(--local-soft)" stroke="var(--local)" stroke-width="2"/>
+    <text x="50" y="90" fill="var(--local)" font-size="15" font-weight="700">開発デプロイメント</text>
+    <text x="50" y="114" fill="var(--fg)" font-size="13">dev:famous-sparrow-741</text>
+    <text x="50" y="146" fill="var(--fg-muted)" font-size="12.5">・メンバー1人につき1つ</text>
+    <text x="50" y="168" fill="var(--fg-muted)" font-size="12.5">・ローカルの npm run dev が接続</text>
+    <text x="50" y="190" fill="var(--fg-muted)" font-size="12.5">・保存するたびに関数が反映</text>
+    <text x="50" y="228" fill="var(--local)" font-size="12.5" font-weight="700">接続元: 自分のPC</text>
+
+    <rect x="310" y="60" width="260" height="200" rx="12" fill="var(--preview-soft)" stroke="var(--preview)" stroke-width="2"/>
+    <text x="330" y="90" fill="var(--preview)" font-size="15" font-weight="700">プレビューデプロイメント</text>
+    <text x="330" y="114" fill="var(--fg)" font-size="13">ブランチ名ごとに1つ</text>
+    <text x="330" y="146" fill="var(--fg-muted)" font-size="12.5">・push のたびに自動生成/再利用</text>
+    <text x="330" y="168" fill="var(--fg-muted)" font-size="12.5">・DBは空の状態で始まる</text>
+    <text x="330" y="190" fill="var(--fg-muted)" font-size="12.5">・5日で自動削除（無料プラン）</text>
+    <text x="330" y="228" fill="var(--preview)" font-size="12.5" font-weight="700">接続元: Vercel の Preview URL</text>
+
+    <rect x="590" y="60" width="260" height="200" rx="12" fill="var(--prod-soft)" stroke="var(--prod)" stroke-width="2"/>
+    <text x="610" y="90" fill="var(--prod)" font-size="15" font-weight="700">本番デプロイメント</text>
+    <text x="610" y="114" fill="var(--fg)" font-size="13">プロジェクトに1つだけ</text>
+    <text x="610" y="146" fill="var(--fg-muted)" font-size="12.5">・実ユーザーのデータが入る</text>
+    <text x="610" y="168" fill="var(--fg-muted)" font-size="12.5">・main へのマージで更新</text>
+    <text x="610" y="190" fill="var(--fg-muted)" font-size="12.5">・消えない</text>
+    <text x="610" y="228" fill="var(--prod)" font-size="12.5" font-weight="700">接続元: 本番URL</text>
+  </svg>
+  </div>
+  <figcaption>同じ <code>convex/</code> のコードが、行き先の違う3つのバックエンドに配られる</figcaption>
+</figure>
+
+<div class="callout">
+  <span class="label">ポイント</span>
+  <p>
+    3つは<strong>データベースも完全に別物</strong>。プレビューで部屋を作っても本番の部屋には出てこないし、
+    ローカルで壊れたデータを作っても本番には影響しない。この分離が「安心して壊せる」土台になっている。
+  </p>
+</div>
+
+<div class="callout">
+  <span class="label">開発デプロイメントは人間専用ではない</span>
+  <p>
+    開発デプロイメントは「メンバー1人につき1つ」が基本形だが、それはローカルPCに限った話ではない。
+    Claude Code のようなクラウド上のコーディングエージェントにも、<strong>自分のPC用とは別の専用devデプロイメント</strong>を割り当てられる。
+    エージェントはブラウザログインができないため専用の認証キーを発行して繋ぐ形になり、
+    自分の作業中のデータやスキーマとエージェントの変更がぶつからないよう分離できる。
+  </p>
+</div>
+
+<h2><span class="num">2</span>3つの環境変数 — 誰が書いて、何を決めるのか</h2>
+
+<p>
+  仕組みの大半は、次の3つの環境変数の役割分担で説明できる。混乱しやすいのは
+  <strong><code>CONVEX_DEPLOYMENT</code> と <code>CONVEX_DEPLOY_KEY</code> が名前は似ているのに使われる場面が正反対</strong>である点。
+</p>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th style="width:23%">変数</th>
+      <th style="width:20%">どこに存在するか</th>
+      <th style="width:19%">誰が書くか</th>
+      <th>何を決めるか</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>CONVEX_DEPLOYMENT</code></td>
+      <td>ローカルの <code>.env.local</code>（Git 管理外）</td>
+      <td><code>convex dev</code> が初回に自動生成</td>
+      <td><strong>ローカル開発の接続先</strong>。自分専用の開発デプロイメント名が入る</td>
+    </tr>
+    <tr>
+      <td><code>CONVEX_DEPLOY_KEY</code></td>
+      <td>Vercel の環境変数（ローカルには置かない）</td>
+      <td>人間が Convex ダッシュボードで発行して登録</td>
+      <td><strong>CI からの接続先と書き込み権限</strong>。どのデプロイメントに関数を push してよいかを表す認証情報</td>
+    </tr>
+    <tr>
+      <td><code>NEXT_PUBLIC_CONVEX_URL</code></td>
+      <td>ローカルは <code>.env.local</code> / ビルド時はメモリ上</td>
+      <td>ローカルは <code>convex dev</code>、CI は <code>convex deploy</code> が自動注入</td>
+      <td><strong>ブラウザ側の接続先</strong>。React が購読を張りにいく URL</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<div class="callout">
+  <span class="label">ここが効いている</span>
+  <p>
+    <code>NEXT_PUBLIC_CONVEX_URL</code> を<strong>手で管理しなくていい</strong>のが、この構成の一番大きな恩恵。
+    ローカルでも Vercel でも「今デプロイした先の URL」がビルドコマンドに自動で渡されるので、
+    フロントの接続先とバックエンドの実体がズレようがない。
+  </p>
+</div>
+
+<h2><span class="num">3</span>ローカル — <code>npm run dev</code> の中身</h2>
+
+<p><code>package.json</code> の <code>dev</code> スクリプトは、2つのプロセスを1コマンドにまとめたもの。</p>
+
+<pre><code>"dev": "convex dev --start 'next dev'"</code></pre>
+
+<p>
+  <code>convex dev</code> は<strong>ローカルのファイルシステムを監視し続ける</strong>常駐プロセスで、
+  <code>--start</code> に渡したコマンド（ここでは <code>next dev</code>）を同時に起動する。
+  <code>convex/</code> 配下を保存すると、次のループが回る。
+</p>
+
+<figure>
+  <div class="scroll">
+  <svg viewBox="0 0 880 250" role="img" aria-label="エディタでの保存が convex dev に検知され、開発デプロイメントへの反映と型の再生成を経てブラウザに反映されるループの図">
+    <defs>
+      <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--local)"/>
+      </marker>
+      <marker id="arm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-muted)"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="60" width="150" height="76" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="91" y="90" text-anchor="middle" fill="var(--fg)" font-size="13.5" font-weight="700">エディタで保存</text>
+    <text x="91" y="112" text-anchor="middle" fill="var(--fg-muted)" font-size="12">convex/game.ts</text>
+
+    <line x1="172" y1="98" x2="214" y2="98" stroke="var(--local)" stroke-width="2" marker-end="url(#ar)"/>
+
+    <rect x="222" y="60" width="160" height="76" rx="10" fill="var(--local-soft)" stroke="var(--local)" stroke-width="2"/>
+    <text x="302" y="90" text-anchor="middle" fill="var(--local)" font-size="13.5" font-weight="700">convex dev が検知</text>
+    <text x="302" y="112" text-anchor="middle" fill="var(--fg-muted)" font-size="12">ファイル監視</text>
+
+    <line x1="388" y1="98" x2="430" y2="98" stroke="var(--local)" stroke-width="2" marker-end="url(#ar)"/>
+
+    <rect x="438" y="22" width="180" height="66" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="528" y="48" text-anchor="middle" fill="var(--fg)" font-size="12.5" font-weight="700">開発デプロイメントへ push</text>
+    <text x="528" y="70" text-anchor="middle" fill="var(--fg-muted)" font-size="12">関数・スキーマが即反映</text>
+
+    <rect x="438" y="108" width="180" height="66" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="528" y="134" text-anchor="middle" fill="var(--fg)" font-size="12.5" font-weight="700">_generated を再生成</text>
+    <text x="528" y="156" text-anchor="middle" fill="var(--fg-muted)" font-size="12">api.game.… の型が更新</text>
+
+    <line x1="624" y1="55" x2="666" y2="88" stroke="var(--local)" stroke-width="2" marker-end="url(#ar)"/>
+    <line x1="624" y1="141" x2="666" y2="108" stroke="var(--local)" stroke-width="2" marker-end="url(#ar)"/>
+
+    <rect x="676" y="60" width="180" height="76" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="766" y="90" text-anchor="middle" fill="var(--fg)" font-size="13.5" font-weight="700">ブラウザに反映</text>
+    <text x="766" y="112" text-anchor="middle" fill="var(--fg-muted)" font-size="12">HMR + リアルタイム購読</text>
+
+    <path d="M 766 146 L 766 198 L 91 198 L 91 148" fill="none" stroke="var(--fg-muted)" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arm)"/>
+    <text x="428" y="224" text-anchor="middle" fill="var(--fg-muted)" font-size="12">保存するたびにこのループが回る（手動のデプロイ操作は不要）</text>
+  </svg>
+  </div>
+</figure>
+
+<p>
+  <strong>型の再生成が同じループに入っているのが効いている。</strong>
+  <code>convex/game.ts</code> に <code>endRoundByHost</code> を追加したとき、保存した直後からフロント側で
+  <code>api.game.endRoundByHost</code> が補完され引数の型も効くようになったのはこれが理由。
+  バックエンドとフロントエンドの間に手書きの型定義や API クライアントが挟まっていないので、ズレが原理的に発生しない。
+</p>
+
+<h2><span class="num">4</span>Vercel — <code>npx convex deploy --cmd 'npm run build'</code> の中身</h2>
+
+<p>
+  Vercel の Build Command はデフォルトの <code>next build</code> ではなく、これに差し替えてある。
+  <strong>Convex のデプロイが親、Next.js のビルドが子</strong>という入れ子構造になっているのが最大のポイント。
+</p>
+
+<ol class="steps">
+  <li>
+    <span class="t">接続先を決める</span>
+    <span class="d"><code>CONVEX_DEPLOY_KEY</code> を読み、どのデプロイメントに向けるかを決定する。CI ではこれが優先され、無ければ <code>CONVEX_DEPLOYMENT</code> にフォールバックする。</span>
+  </li>
+  <li>
+    <span class="t">ビルド環境とキーの種類が合っているか検証する</span>
+    <span class="d">Vercel が渡す <code>VERCEL_ENV</code>（<code>production</code> / <code>preview</code>）と、キーの種類が対応しているかを確認する。<strong>不一致ならここでビルドを中止する</strong>（→ 第6章）。</span>
+  </li>
+  <li>
+    <span class="t">プレビューの場合はデプロイメントを用意する</span>
+    <span class="d">Preview キーだった場合、Git ブランチ名に対応したデプロイメントを新規作成する。同名のものが既にあればそれを再利用し、データも保持される。</span>
+  </li>
+  <li>
+    <span class="t">Convex 関数を型チェックしてバンドルする</span>
+    <span class="d"><code>convex/</code> 配下を typecheck し、<code>convex/_generated</code> を再生成したうえで、依存ごとバンドルする。</span>
+  </li>
+  <li>
+    <span class="t">関数・インデックス・スキーマを push する</span>
+    <span class="d">対象デプロイメントにバックエンドが反映される。<strong>フロントのビルドより先にここが完了する。</strong></span>
+  </li>
+  <li>
+    <span class="t"><code>--cmd</code> のコマンドを実行する</span>
+    <span class="d">デプロイ先の URL を <code>NEXT_PUBLIC_CONVEX_URL</code> として環境に注入した状態で <code>npm run build</code> を走らせる。変数名はフレームワークの規約から自動判別される（<code>--cmd-url-env-var-name</code> で明示指定も可能）。</span>
+  </li>
+  <li>
+    <span class="t">ビルド成果物が完成する</span>
+    <span class="d">正しい接続先が焼き込まれた Next.js の成果物を Vercel が配信する。</span>
+  </li>
+</ol>
+
+<div class="callout">
+  <span class="label">なぜこの順序なのか</span>
+  <p>
+    <strong>バックエンドが先、フロントエンドが後</strong>という順序に意味がある。
+    フロントがビルドされて公開される時点で、それが呼ぶ Convex 関数はすでに存在していることが保証される。
+    逆順だと「新しい画面が、まだ存在しない関数を呼ぶ」瞬間が生まれてしまう。
+  </p>
+  <p>
+    さらに <code>npm run build</code> は <code>tsc --noEmit &amp;&amp; next build</code> なので、フロント側の型エラーがあればここで落ちる。
+    つまり<strong>「バックエンドは通ったがフロントが壊れている」状態はビルド失敗として検出される</strong>。
+  </p>
+</div>
+
+<h2><span class="num">5</span><code>CONVEX_DEPLOY_KEY</code> の正体と振り分け</h2>
+
+<p>
+  <code>CONVEX_DEPLOY_KEY</code> は「<strong>どのデプロイメントに、どの権限で書き込んでよいか</strong>」を1本の文字列に封じ込めた認証情報。
+  Paint Rush では権限を <code>deployment:deploy</code> だけに絞ってあり、関数をデプロイする以外のことはできない。
+</p>
+
+<p>
+  重要なのは、Vercel 上では<strong><code>CONVEX_DEPLOY_KEY</code> という同じ名前の変数が2本登録されている</strong>こと。
+  Vercel は環境スコープごとに別の値を持てるので、ビルドが走る環境に応じて片方だけが注入される。
+</p>
+
+<figure>
+  <div class="scroll">
+  <svg viewBox="0 0 880 300" role="img" aria-label="push したブランチが main かどうかで VERCEL_ENV が変わり、注入される CONVEX_DEPLOY_KEY と最終的なデプロイ先が分岐する図">
+    <defs>
+      <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--fg-muted)"/>
+      </marker>
+    </defs>
+
+    <rect x="16" y="118" width="132" height="64" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="82" y="146" text-anchor="middle" fill="var(--fg)" font-size="13.5" font-weight="700">git push</text>
+    <text x="82" y="167" text-anchor="middle" fill="var(--fg-muted)" font-size="12">Vercel が検知</text>
+
+    <line x1="154" y1="150" x2="196" y2="76" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+    <line x1="154" y1="150" x2="196" y2="224" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+
+    <rect x="204" y="40" width="150" height="66" rx="10" fill="var(--preview-soft)" stroke="var(--preview)" stroke-width="2"/>
+    <text x="279" y="68" text-anchor="middle" fill="var(--preview)" font-size="13" font-weight="700">main 以外のブランチ</text>
+    <text x="279" y="89" text-anchor="middle" fill="var(--fg-muted)" font-size="11.5">VERCEL_ENV=preview</text>
+
+    <line x1="360" y1="73" x2="402" y2="73" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+
+    <rect x="410" y="40" width="196" height="66" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="508" y="68" text-anchor="middle" fill="var(--fg)" font-size="13" font-weight="700">Preview スコープの値</text>
+    <text x="508" y="89" text-anchor="middle" fill="var(--fg-muted)" font-size="12">Preview Deploy Key</text>
+
+    <line x1="612" y1="73" x2="654" y2="73" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+
+    <rect x="662" y="40" width="200" height="66" rx="10" fill="var(--preview-soft)" stroke="var(--preview)" stroke-width="2"/>
+    <text x="762" y="68" text-anchor="middle" fill="var(--preview)" font-size="12.5" font-weight="700">ブランチ用デプロイメント</text>
+    <text x="762" y="89" text-anchor="middle" fill="var(--fg-muted)" font-size="12">無ければ自動作成</text>
+
+    <rect x="204" y="194" width="150" height="66" rx="10" fill="var(--prod-soft)" stroke="var(--prod)" stroke-width="2"/>
+    <text x="279" y="222" text-anchor="middle" fill="var(--prod)" font-size="13" font-weight="700">main ブランチ</text>
+    <text x="279" y="243" text-anchor="middle" fill="var(--fg-muted)" font-size="11.5">VERCEL_ENV=production</text>
+
+    <line x1="360" y1="227" x2="402" y2="227" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+
+    <rect x="410" y="194" width="196" height="66" rx="10" fill="var(--bg-soft)" stroke="var(--border)" stroke-width="2"/>
+    <text x="508" y="222" text-anchor="middle" fill="var(--fg)" font-size="12.5" font-weight="700">Production スコープの値</text>
+    <text x="508" y="243" text-anchor="middle" fill="var(--fg-muted)" font-size="12">Production Deploy Key</text>
+
+    <line x1="612" y1="227" x2="654" y2="227" stroke="var(--fg-muted)" stroke-width="2" marker-end="url(#ar2)"/>
+
+    <rect x="662" y="194" width="200" height="66" rx="10" fill="var(--prod-soft)" stroke="var(--prod)" stroke-width="2"/>
+    <text x="762" y="222" text-anchor="middle" fill="var(--prod)" font-size="13" font-weight="700">本番デプロイメント</text>
+    <text x="762" y="243" text-anchor="middle" fill="var(--fg-muted)" font-size="12">実ユーザーのデータ</text>
+
+    <text x="530" y="155" text-anchor="middle" fill="var(--fg-muted)" font-size="12.5">同じ名前の変数だが、Vercel が環境スコープに応じて片方だけを注入する</text>
+  </svg>
+  </div>
+</figure>
+
+<h2><span class="num">6</span>実際に遭遇したエラーの読み方</h2>
+
+<p>Preview 用のキーを設定する前、<code>feature/deploy</code> ブランチのプレビュービルドが次のエラーで落ちた。</p>
+
+<pre><code>✖ Detected a non-production build environment and "CONVEX_DEPLOY_KEY"
+  for a production Convex deployment. This is probably unintentional.</code></pre>
+
+<p>
+  これは第4章のステップ2で止まった状態。<code>VERCEL_ENV=preview</code> なのに Production Deploy Key が渡されていたので、
+  Convex が「意図しない設定だろう」と判断してビルドを中止した。
+</p>
+
+<div class="callout warn">
+  <span class="label">この安全装置が無かったら</span>
+  <p>
+    <code>feature/*</code> ブランチを push するたびに、<strong>まだレビューもマージもしていない関数が本番の Convex に反映されてしまう</strong>。
+    フロントはプレビューURLに閉じているのにバックエンドだけ本番が書き換わる、という最悪の組み合わせになる。
+    エラーで止まったのは正しい挙動だった。
+  </p>
+</div>
+
+<p>
+  同じ理由で、<strong>プレビューのフロントだけを本番バックエンドに向ける</strong>運用も勧められない。
+  ブランチで変更した Convex 関数がデプロイされないまま新しいフロントが動くことになり、
+  たとえば <code>endRoundByHost</code> を追加したブランチのプレビュー画面で「ゲームを終了」を押すと、
+  本番に存在しない関数を呼んで実行時エラーになる。スキーマを変えていればもっと分かりにくい壊れ方をする。
+</p>
+
+<h2><span class="num">7</span>3つの経路まとめ</h2>
+
+<div class="scroll">
+<table>
+  <thead>
+    <tr>
+      <th style="width:19%"></th>
+      <th style="width:27%"><span class="tag local">ローカル</span></th>
+      <th style="width:27%"><span class="tag preview">プレビュー</span></th>
+      <th style="width:27%"><span class="tag prod">本番</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <th>きっかけ</th>
+      <td>ファイルを保存</td>
+      <td><code>main</code> 以外のブランチを push</td>
+      <td><code>main</code> にマージ</td>
+    </tr>
+    <tr>
+      <th>実行コマンド</th>
+      <td><code>convex dev --start 'next dev'</code></td>
+      <td colspan="2"><code>npx convex deploy --cmd 'npm run build'</code>（Vercel の Build Command。両者で同一）</td>
+    </tr>
+    <tr>
+      <th>接続先の決定</th>
+      <td><code>CONVEX_DEPLOYMENT</code>（<code>.env.local</code>）</td>
+      <td>Preview スコープの <code>CONVEX_DEPLOY_KEY</code></td>
+      <td>Production スコープの <code>CONVEX_DEPLOY_KEY</code></td>
+    </tr>
+    <tr>
+      <th>フロントの接続先</th>
+      <td colspan="3"><code>NEXT_PUBLIC_CONVEX_URL</code>（いずれも自動で設定される。手で書く必要はない）</td>
+    </tr>
+    <tr>
+      <th>データ</th>
+      <td>自分専用。壊しても影響なし</td>
+      <td>空から始まる。ブランチ内では保持される</td>
+      <td>実ユーザーのデータ</td>
+    </tr>
+    <tr>
+      <th>寿命</th>
+      <td>消えない</td>
+      <td>5日で自動削除（無料プラン）</td>
+      <td>消えない</td>
+    </tr>
+    <tr>
+      <th>型の再生成</th>
+      <td>保存のたびに自動</td>
+      <td colspan="2">ビルド中に自動（<code>convex/_generated</code> の状態に依存しない）</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h2><span class="num">8</span>まとめ — 何が開発体験を良くしているのか</h2>
+
+<div class="card">
+  <p><strong>1. 接続先の管理が消えている。</strong> <code>NEXT_PUBLIC_CONVEX_URL</code> を人間が管理しないので、「URL を書き換え忘れて別の環境を見ていた」類の事故が起きない。</p>
+  <p><strong>2. バックエンドとフロントの型が同じループで生成される。</strong> API クライアントを手書きしないため、関数を追加した瞬間にフロントで補完され、消せばフロントが型エラーになる。</p>
+  <p><strong>3. デプロイの順序が固定されている。</strong> 「バックエンド → フロント」の順が <code>--cmd</code> の入れ子構造で強制されるので、順序ミスによる不整合が起きない。</p>
+  <p><strong>4. 環境の取り違えを検知して止まる。</strong> キーの種類とビルド環境の突き合わせが自動で行われ、危険な組み合わせはビルドエラーになる。</p>
+</div>
+
+<h2><span class="num">9</span>参考リンク（公式ドキュメント）</h2>
+
+<ul class="links">
+  <li>
+    <a href="https://docs.convex.dev/cli" target="_blank" rel="noopener">Convex CLI</a>
+    <span class="desc"><code>convex dev</code> / <code>convex deploy</code> の挙動と全フラグ</span>
+  </li>
+  <li>
+    <a href="https://docs.convex.dev/production" target="_blank" rel="noopener">Deploying Your App to Production</a>
+    <span class="desc">デプロイメントの概念とチーム開発のワークフロー</span>
+  </li>
+  <li>
+    <a href="https://docs.convex.dev/production/hosting/vercel" target="_blank" rel="noopener">Using Convex with Vercel</a>
+    <span class="desc">Build Command の設定と Production / Preview のキー登録手順</span>
+  </li>
+  <li>
+    <a href="https://docs.convex.dev/production/hosting/preview-deployments" target="_blank" rel="noopener">Preview Deployments</a>
+    <span class="desc">ブランチごとのデプロイメント、<code>--preview-run</code> によるシード、寿命</span>
+  </li>
+  <li>
+    <a href="https://docs.convex.dev/production/environment-variables" target="_blank" rel="noopener">Environment Variables</a>
+    <span class="desc">Convex 側の環境変数と、プレビュー/開発デプロイメント向けのデフォルト値</span>
+  </li>
+  <li>
+    <a href="https://www.convex.dev/pricing" target="_blank" rel="noopener">Convex Pricing</a>
+    <span class="desc">無料プランのデプロイメント上限（40）など</span>
+  </li>
+</ul>
+
+<footer>
+  <p>
+    Paint Rush 開発メモ / 2026-08-08 時点の公式ドキュメントに基づく。<br>
+    設定手順そのものは <a href="./デプロイ手順.md">デプロイ手順.md</a>、アプリの設計判断は <a href="./設計メモ.md">設計メモ.md</a> を参照。
+  </p>
+</footer>
+
+</div>
+</body>
+</html>
