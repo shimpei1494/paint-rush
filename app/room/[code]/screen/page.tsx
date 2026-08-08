@@ -48,7 +48,11 @@ export default function ScreenPage() {
             gridSize={roomDoc.gridSize}
             endsAt={roomDoc.status === "playing" ? roomDoc.endsAt : undefined}
           />
-          <Grid gridSize={roomDoc.gridSize} cells={cells ?? []} />
+          <Grid
+            gridSize={roomDoc.gridSize}
+            cells={cells ?? []}
+            startCells={roomDoc.startCells}
+          />
         </>
       )}
 

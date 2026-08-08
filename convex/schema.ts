@@ -15,6 +15,11 @@ export default defineSchema({
     startsAt: v.optional(v.number()),
     endsAt: v.optional(v.number()),
     gridSize: v.number(),
+    // ラウンドごとのスタートマス。奪われない保護マスなので cells とは別に rooms 側で持つ
+    // (最大8件の小さな配列。paint は毎回 rooms を読むので追加の読み取りコストなし)
+    startCells: v.optional(
+      v.array(v.object({ x: v.number(), y: v.number(), color: v.string() })),
+    ),
   }).index("by_code", ["code"]),
 
   players: defineTable({

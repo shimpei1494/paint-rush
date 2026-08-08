@@ -81,7 +81,11 @@ export default function ResultSection({ room, playerId, players }: ResultSection
 
       {/* 最終盤面。onPaint を渡さないので読み取り専用 */}
       <div className="w-full max-w-md">
-        <Grid gridSize={room.gridSize} cells={cells ?? []} />
+        <Grid
+          gridSize={room.gridSize}
+          cells={cells ?? []}
+          startCells={room.startCells}
+        />
       </div>
 
       <div className="w-full max-w-md">

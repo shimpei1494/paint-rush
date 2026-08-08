@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@/convex/_generated/api";
 import type { Doc } from "@/convex/_generated/dataModel";
-import { MIN_PLAYERS, PALETTE } from "@/convex/constants";
+import {
+  GRID_SIZE_OPTIONS,
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  PALETTE,
+} from "@/convex/constants";
 import { useOrigin } from "@/lib/useOrigin";
 import { usePlayerIdentity } from "@/lib/player";
 import JoinQr from "./JoinQr";
@@ -18,6 +23,7 @@ interface LobbySectionProps {
 
 export default function LobbySection({ room, players, playerId, code }: LobbySectionProps) {
   const changeColor = useMutation(api.rooms.changeColor);
+  const setGridSize = useMutation(api.rooms.setGridSize);
   const startGame = useMutation(api.game.startGame);
   const joinRoom = useMutation(api.rooms.joinRoom);
   const { setName: persistName } = usePlayerIdentity();
@@ -72,7 +78,7 @@ export default function LobbySection({ room, players, playerId, code }: LobbySec
 
       <div className="w-full max-w-md">
         <h2 className="mb-2 text-sm font-semibold text-neutral-400">
-          参加者 ({players.length}/6)
+          参加者 ({players.length}/{MAX_PLAYERS})
         </h2>
         <ul className="flex flex-col gap-2">
           {players.map((p) => (
@@ -109,7 +115,7 @@ export default function LobbySection({ room, players, playerId, code }: LobbySec
 
       <div className="w-full max-w-md">
         <h2 className="mb-2 text-sm font-semibold text-neutral-400">自分の色</h2>
-        <div className="grid grid-cols-6 gap-3">
+        <div className="grid grid-cols-4 gap-3">
           {PALETTE.map((color) => {
             const count = teamCount(color);
             const isMine = me?.color === color;
@@ -133,6 +139,37 @@ export default function LobbySection({ room, players, playerId, code }: LobbySec
             );
           })}
         </div>
+      </div>
+
+      <div className="w-full max-w-md">
+        <h2 className="mb-2 text-sm font-semibold text-neutral-400">盤面サイズ</h2>
+        {isHost ? (
+          <div className="grid grid-cols-3 gap-3">
+            {GRID_SIZE_OPTIONS.map((size) => {
+              const selected = room.gridSize === size;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() =>
+                    void setGridSize({ roomId: room._id, playerId, gridSize: size })
+                  }
+                  className={`no-tap rounded-xl py-3 font-bold transition active:scale-95 ${
+                    selected
+                      ? "bg-emerald-500 text-white"
+                      : "bg-neutral-800 text-neutral-300"
+                  }`}
+                >
+                  {size}×{size}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <p className="rounded-xl bg-neutral-800 px-4 py-3 text-neutral-200">
+            {room.gridSize}×{room.gridSize}
+          </p>
+        )}
       </div>
 
       <div className="w-full max-w-md">

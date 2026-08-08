@@ -13,8 +13,15 @@ export interface GridCellData {
 interface GridProps {
   gridSize: number;
   cells: GridCellData[];
-  /** Omit (or leave undefined) for a read-only grid — e.g. the /screen view. */
-  onPaint?: (x: number, y: number) => void;
+  /** スタートマス(奪われない保護マス)。マーカー表示に使う。 */
+  startCells?: GridCellData[];
+  /** 自分のチーム色。指定すると隣接ルールで塗れる未塗装マスを少し明るく表示する。 */
+  highlightColor?: string;
+  /**
+   * Omit (or leave undefined) for a read-only grid — e.g. the /screen view.
+   * Return false to indicate the tap was invalid (no cooldown is consumed).
+   */
+  onPaint?: (x: number, y: number) => boolean | void;
 }
 
 /**
@@ -23,7 +30,13 @@ interface GridProps {
  * taps never spam the server, and hands each `Cell` a single stable
  * callback so unaffected cells never re-render when others change color.
  */
-export default function Grid({ gridSize, cells, onPaint }: GridProps) {
+export default function Grid({
+  gridSize,
+  cells,
+  startCells,
+  highlightColor,
+  onPaint,
+}: GridProps) {
   const cellMap = useMemo(() => {
     const m = new Map<number, string>();
     for (const c of cells) {
@@ -32,6 +45,34 @@ export default function Grid({ gridSize, cells, onPaint }: GridProps) {
     return m;
   }, [cells, gridSize]);
 
+  const startKeySet = useMemo(() => {
+    const s = new Set<number>();
+    for (const c of startCells ?? []) {
+      s.add(c.y * gridSize + c.x);
+    }
+    return s;
+  }, [startCells, gridSize]);
+
+  // 自色マスの4近傍のうち未塗装のマス = 隣接ルールで今すぐ塗れる空きマス
+  const paintableKeySet = useMemo(() => {
+    const s = new Set<number>();
+    if (!highlightColor) return s;
+    for (const c of cells) {
+      if (c.color !== highlightColor) continue;
+      for (const [nx, ny] of [
+        [c.x - 1, c.y],
+        [c.x + 1, c.y],
+        [c.x, c.y - 1],
+        [c.x, c.y + 1],
+      ]) {
+        if (nx < 0 || nx >= gridSize || ny < 0 || ny >= gridSize) continue;
+        const key = ny * gridSize + nx;
+        if (!cellMap.has(key)) s.add(key);
+      }
+    }
+    return s;
+  }, [cells, cellMap, gridSize, highlightColor]);
+
   const onPaintRef = useRef(onPaint);
   onPaintRef.current = onPaint;
 
@@ -39,8 +80,9 @@ export default function Grid({ gridSize, cells, onPaint }: GridProps) {
   const handlePaint = useCallback((x: number, y: number) => {
     const now = Date.now();
     if (now - lastPaintAtRef.current < PAINT_COOLDOWN_MS) return;
+    // 無効なタップ(隣接していない等)はクールダウンを消費しない
+    if (onPaintRef.current?.(x, y) === false) return;
     lastPaintAtRef.current = now;
-    onPaintRef.current?.(x, y);
   }, []);
 
   const items = useMemo(() => {
@@ -68,6 +110,8 @@ export default function Grid({ gridSize, cells, onPaint }: GridProps) {
           x={x}
           y={y}
           color={cellMap.get(key)}
+          isStart={startKeySet.has(key)}
+          paintable={paintableKeySet.has(key)}
           onPaint={onPaint ? handlePaint : undefined}
         />
       ))}

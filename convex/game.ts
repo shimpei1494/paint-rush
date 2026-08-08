@@ -29,6 +29,15 @@ async function getPlayer(
     .unique();
 }
 
+// 盤面外周を左上から時計回りに一周したときの p 番目のマス座標(p は 0 〜 4*(size-1)-1)
+function perimeterCell(p: number, size: number): { x: number; y: number } {
+  const edge = size - 1;
+  if (p < edge) return { x: p, y: 0 };
+  if (p < 2 * edge) return { x: edge, y: p - edge };
+  if (p < 3 * edge) return { x: edge - (p - 2 * edge), y: edge };
+  return { x: 0, y: edge - (p - 3 * edge) };
+}
+
 export const startGame = mutation({
   args: {
     roomId: v.id("rooms"),
@@ -58,11 +67,31 @@ export const startGame = mutation({
     const startsAt = Date.now() + COUNTDOWN_MS;
     const endsAt = startsAt + ROUND_MS;
 
+    // 各プレイヤーのスタートマスを盤面外周に等間隔で配置する(戦略性改善検討 S1)。
+    // ロビー時点で盤面は必ず空(resetRoom が cells を消してから lobby に戻す)なので insert でよい。
+    // 最小盤面12でも外周44マス÷最大8人で間隔5マス以上あり、位置が衝突することはない
+    const perimeter = 4 * (room.gridSize - 1);
+    const offset = Math.floor(Math.random() * perimeter);
+    const startCells = players.map((player, i) => {
+      const pos =
+        (offset + Math.floor((i * perimeter) / players.length)) % perimeter;
+      return { ...perimeterCell(pos, room.gridSize), color: player.color };
+    });
+    for (const cell of startCells) {
+      await ctx.db.insert("cells", {
+        roomId: args.roomId,
+        x: cell.x,
+        y: cell.y,
+        color: cell.color,
+      });
+    }
+
     await ctx.db.patch("rooms", args.roomId, {
       status: "countdown",
       roundId: nextRound,
       startsAt,
       endsAt,
+      startCells,
     });
 
     await ctx.scheduler.runAt(startsAt, internal.game.beginPlaying, {
@@ -159,6 +188,40 @@ export const paint = mutation({
       .unique();
     if (cooldown && now - cooldown.lastPaintedAt < PAINT_COOLDOWN_MS) {
       return { ok: false as const, reason: "cooldown" as const };
+    }
+
+    // スタートマスは奪われない。全マスを失って詰むことへの救済(戦略性改善検討 S1)
+    const startCell = (room.startCells ?? []).find(
+      (s) => s.x === args.x && s.y === args.y,
+    );
+    if (startCell && startCell.color !== player.color) {
+      return { ok: false as const, reason: "protectedCell" as const };
+    }
+
+    // 隣接ルール: 自色マスの4近傍だけ塗れる(戦略性改善検討 S1)。
+    // 連結性の厳密判定はせず「タップした瞬間に自色隣接ならOK」のみ(インデックス point read 4件)
+    const neighborCells = await Promise.all(
+      [
+        [args.x - 1, args.y],
+        [args.x + 1, args.y],
+        [args.x, args.y - 1],
+        [args.x, args.y + 1],
+      ]
+        .filter(
+          ([nx, ny]) =>
+            nx >= 0 && nx < room.gridSize && ny >= 0 && ny < room.gridSize,
+        )
+        .map(([nx, ny]) =>
+          ctx.db
+            .query("cells")
+            .withIndex("by_room_and_pos", (q) =>
+              q.eq("roomId", args.roomId).eq("x", nx).eq("y", ny),
+            )
+            .unique(),
+        ),
+    );
+    if (!neighborCells.some((c) => c !== null && c.color === player.color)) {
+      return { ok: false as const, reason: "notAdjacent" as const };
     }
 
     // 色は引数ではなく player.color から決める(なりすまし防止、設計メモ D5)
@@ -259,6 +322,7 @@ export const resetRoom = mutation({
       roundId: room.roundId + 1,
       startsAt: undefined,
       endsAt: undefined,
+      startCells: undefined,
     });
 
     return { ok: true as const };
