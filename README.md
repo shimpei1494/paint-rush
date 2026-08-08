@@ -24,6 +24,14 @@ If you're reading this README on GitHub and want to use this template, run:
 npm create convex@latest -- -t nextjs
 ```
 
+## デプロイ（Vercel + Convex）
+
+本番URL: https://paint-rush-eight.vercel.app/
+
+Vercel + Convex の初期セットアップは完了済み。**以降のデプロイは `main` ブランチに push / マージするだけ**でよい（Vercel の GitHub 連携により Convex 本番デプロイ → Next.js ビルド → 本番反映が自動で走る）。
+
+初回セットアップの詳細手順（キー再発行など再設定が必要な場合の参考用）は [docs/デプロイ手順.md](docs/デプロイ手順.md) を参照。
+
 ## Learn more
 
 To learn more about developing your project with Convex, check out:

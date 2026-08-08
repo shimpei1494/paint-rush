@@ -19,6 +19,7 @@ export const PAINT_COOLDOWN_MS = 300;
 export const COUNTDOWN_MS = 3000;
 export const ROUND_MS = 60000;
 export const ROOM_CODE_LENGTH = 4;
+export const DEFAULT_PLAYER_NAME = "プレイヤー";
 
 export function isPaletteColor(c: string): c is PaletteColor {
   return (PALETTE as readonly string[]).includes(c);

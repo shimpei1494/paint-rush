@@ -18,6 +18,7 @@ export default function Home() {
   const [joinError, setJoinError] = useState<string | null>(null);
 
   const canSubmit = ready && !!playerId && name.trim().length > 0 && !busy;
+  const needsName = ready && name.trim().length === 0;
 
   const handleCreate = async () => {
     if (!playerId) return;
@@ -50,12 +51,17 @@ export default function Home() {
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-10 px-6 py-12">
       <div className="flex flex-col items-center gap-2">
-        <h1 className="text-4xl font-black tracking-tight text-white">Paint Rush</h1>
+        <h1 className="text-4xl font-black tracking-tight text-white">
+          Paint Rush
+        </h1>
         <p className="text-neutral-400">みんなで塗って陣取ろう</p>
       </div>
 
       <div className="flex w-full flex-col gap-2">
-        <label htmlFor="name" className="text-sm font-semibold text-neutral-400">
+        <label
+          htmlFor="name"
+          className="text-sm font-semibold text-neutral-400"
+        >
           名前
         </label>
         <input
@@ -65,8 +71,14 @@ export default function Home() {
           onChange={(e) => setName(e.target.value.slice(0, 20))}
           placeholder="なまえを入力"
           maxLength={20}
+          aria-describedby={needsName ? "name-hint" : undefined}
           className="no-tap w-full rounded-xl bg-neutral-800 px-4 py-4 text-lg text-white placeholder:text-neutral-500 focus:outline-none focus:ring-2 focus:ring-emerald-500"
         />
+        {needsName && (
+          <p id="name-hint" className="text-sm text-neutral-400">
+            名前を入力すると部屋を作成・参加できます
+          </p>
+        )}
       </div>
 
       <button
@@ -85,7 +97,10 @@ export default function Home() {
       </div>
 
       <div className="flex w-full flex-col gap-3">
-        <label htmlFor="code" className="text-sm font-semibold text-neutral-400">
+        <label
+          htmlFor="code"
+          className="text-sm font-semibold text-neutral-400"
+        >
           部屋コードで参加
         </label>
         <input
@@ -93,7 +108,10 @@ export default function Home() {
           type="text"
           value={roomCode}
           onChange={(e) => {
-            const next = e.target.value.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 4);
+            const next = e.target.value
+              .toUpperCase()
+              .replace(/[^A-Z]/g, "")
+              .slice(0, 4);
             setRoomCode(next);
           }}
           placeholder="ABCD"
@@ -108,7 +126,9 @@ export default function Home() {
         >
           参加
         </button>
-        {joinError && <p className="text-center text-sm text-red-400">{joinError}</p>}
+        {joinError && (
+          <p className="text-center text-sm text-red-400">{joinError}</p>
+        )}
       </div>
     </main>
   );
