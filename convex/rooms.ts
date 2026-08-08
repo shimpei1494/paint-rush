@@ -65,7 +65,9 @@ export const createRoom = mutation({
       }
     }
     if (code === null) {
-      throw new Error("部屋コードの生成に失敗しました。もう一度お試しください。");
+      throw new Error(
+        "部屋コードの生成に失敗しました。もう一度お試しください。",
+      );
     }
 
     const roomId = await ctx.db.insert("rooms", {

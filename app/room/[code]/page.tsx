@@ -62,7 +62,12 @@ export default function RoomPage() {
   return (
     <main className="mx-auto min-h-dvh max-w-2xl">
       {roomDoc.status === "lobby" && (
-        <LobbySection room={roomDoc} players={players} playerId={playerId} code={code} />
+        <LobbySection
+          room={roomDoc}
+          players={players}
+          playerId={playerId}
+          code={code}
+        />
       )}
       {roomDoc.status === "countdown" && roomDoc.startsAt !== undefined && (
         <CountdownSection startsAt={roomDoc.startsAt} />
@@ -77,12 +82,21 @@ export default function RoomPage() {
   );
 }
 
-function CenteredMessage({ text, showHomeLink }: { text: string; showHomeLink?: boolean }) {
+function CenteredMessage({
+  text,
+  showHomeLink,
+}: {
+  text: string;
+  showHomeLink?: boolean;
+}) {
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center gap-4 px-6 text-center">
       <p className="text-xl text-neutral-300">{text}</p>
       {showHomeLink && (
-        <Link href="/" className="text-emerald-400 underline underline-offset-4">
+        <Link
+          href="/"
+          className="text-emerald-400 underline underline-offset-4"
+        >
           トップへ戻る
         </Link>
       )}
