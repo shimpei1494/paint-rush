@@ -32,6 +32,8 @@ Vercel + Convex の初期セットアップは完了済み。**以降のデプ�
 
 初回セットアップの詳細手順（キー再発行など再設定が必要な場合の参考用）は [docs/デプロイ手順.md](docs/デプロイ手順.md) を参照。
 
+一般公開はせず招待した人だけに使わせたい場合は、[docs/デプロイ手順.md の Basic認証セクション](docs/デプロイ手順.md#basic認証で本番アクセスを制限する)を参照。
+
 ## Learn more
 
 To learn more about developing your project with Convex, check out:
